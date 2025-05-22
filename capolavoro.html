@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MacroBuilder - Calcola i tuoi Macronutrienti</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f2027;
+      --text-color: #fff;
+      --accent-color: #f9b234;
+      --card-bg: #1e2b37;
+      --input-bg: #fff;
+    }
+    [data-theme="light"] {
+      --bg-color: #f3f3f3;
+      --text-color: #000;
+      --accent-color: #f9b234;
+      --card-bg: #ffffff;
+      --input-bg: #f0f0f0;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      transition: all 0.3s ease-in-out;
+    }
+    h1 {
+      color: var(--accent-color);
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    form {
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+      max-width: 500px;
+      width: 100%;
+    }
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: none;
+      margin-top: 0.5rem;
+      background: var(--input-bg);
+    }
+    button {
+      margin-top: 2rem;
+      padding: 0.8rem;
+      background-color: var(--accent-color);
+      color: var(--card-bg);
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      width: 100%;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #f1a220;
+    }
+    .result, .diet-plan, .chart-container {
+      margin-top: 2rem;
+      background: var(--card-bg);
+      padding: 1.5rem;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+    }
+    .result h2, .diet-plan h2, .chart-container h2 {
+      color: var(--accent-color);
+    }
+    #themeToggle {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 0.5rem 1rem;
+      background-color: var(--accent-color);
+      color: var(--card-bg);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <button id="themeToggle">🌞 Tema</button>
+  <h1>MacroBuilder</h1>
+  <form id="macroForm">
+    <label for="peso">Peso (kg)</label>
+    <input type="number" id="peso" required />
+
+    <label for="altezza">Altezza (cm)</label>
+    <input type="number" id="altezza" required />
+
+    <label for="eta">Età</label>
+    <input type="number" id="eta" required />
+
+    <label for="attivita">Livello di attività</label>
+    <select id="attivita">
+      <option value="1.2">Sedentario</option>
+      <option value="1.375">Leggero</option>
+      <option value="1.55">Moderato</option>
+      <option value="1.725">Intenso</option>
+      <option value="1.9">Molto Intenso</option>
+    </select>
+
+    <label for="obiettivo">Obiettivo</label>
+    <select id="obiettivo">
+      <option value="massa">Massa</option>
+      <option value="cut">Definizione</option>
+      <option value="mantenimento">Mantenimento</option>
+    </select>
+
+    <label for="giorniAllenamento">Giorni di allenamento (seleziona uno o più)</label>
+    <select id="giorniAllenamento" multiple>
+      <option value="0">Lunedì</option>
+      <option value="1">Martedì</option>
+      <option value="2">Mercoledì</option>
+      <option value="3">Giovedì</option>
+      <option value="4">Venerdì</option>
+      <option value="5">Sabato</option>
+      <option value="6">Domenica</option>
+    </select>
+
+    <button type="submit">Calcola</button>
+  </form>
+
+  <div class="result" id="output" style="display:none">
+    <h2>Risultato</h2>
+    <p><strong>Kcal giornaliere:</strong> <span id="kcal"></span></p>
+    <p><strong>Proteine:</strong> <span id="proteine"></span> g</p>
+    <p><strong>Grassi:</strong> <span id="grassi"></span> g</p>
+    <p><strong>Carboidrati:</strong> <span id="carboidrati"></span> g</p>
+    <button onclick="downloadPDF()">📄 Scarica PDF</button>
+  </div>
+
+  <div class="chart-container" style="display:none">
+    <h2>Distribuzione Settimanale</h2>
+    <canvas id="macroChart"></canvas>
+  </div>
+
+  <div class="diet-plan" style="display:none">
+    <h2>Piano Settimanale</h2>
+    <ul id="dietList"></ul>
+  </div>
+
+  <script>
+    const form = document.getElementById("macroForm");
+    const output = document.getElementById("output");
+    const chartContainer = document.querySelector(".chart-container");
+    const dietPlan = document.querySelector(".diet-plan");
+    const dietList = document.getElementById("dietList");
+
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      const peso = parseFloat(document.getElementById("peso").value);
+      const altezza = parseFloat(document.getElementById("altezza").value);
+      const eta = parseInt(document.getElementById("eta").value);
+      const attivita = parseFloat(document.getElementById("attivita").value);
+      const obiettivo = document.getElementById("obiettivo").value;
+      const giorniAllenamento = Array.from(document.getElementById("giorniAllenamento").selectedOptions).map(o => parseInt(o.value));
+
+      const BMR = 10 * peso + 6.25 * altezza - 5 * eta + 5;
+      let TDEE = BMR * attivita;
+
+      if (obiettivo === "massa") TDEE += 300;
+      else if (obiettivo === "cut") TDEE -= 300;
+
+      const kcal = Math.round(TDEE);
+      const proteine = Math.round(peso * 2.5);
+      const grassi = Math.round((TDEE * 0.25) / 9);
+      const kcalProteine = proteine * 4;
+      const kcalGrassi = grassi * 9;
+
+      const carboBase = Math.round((TDEE - kcalProteine - kcalGrassi) / 4);
+
+      const giorni = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+      const carboidratiSettimana = giorni.map((_, i) => giorniAllenamento.includes(i) ? Math.round(carboBase * 1.2) : Math.round(carboBase * 0.8));
+
+      document.getElementById("kcal").textContent = kcal;
+      document.getElementById("proteine").textContent = proteine;
+      document.getElementById("grassi").textContent = grassi;
+      document.getElementById("carboidrati").textContent = carboBase;
+
+      output.style.display = "block";
+      chartContainer.style.display = "block";
+      dietPlan.style.display = "block";
+
+      new Chart(document.getElementById("macroChart"), {
+        type: 'bar',
+        data: {
+          labels: giorni,
+          datasets: [
+            { label: 'Proteine', data: Array(7).fill(proteine), backgroundColor: '#f94144' },
+            { label: 'Grassi', data: Array(7).fill(grassi), backgroundColor: '#f3722c' },
+            { label: 'Carboidrati', data: carboidratiSettimana, backgroundColor: '#43aa8b' }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } }
+        }
+      });
+
+      dietList.innerHTML = '';
+      giorni.forEach((g, i) => {
+        dietList.innerHTML += `<li><strong>${g}:</strong> ${proteine}g proteine, ${grassi}g grassi, ${carboidratiSettimana[i]}g carboidrati</li>`;
+      });
+    });
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("Report MacroBuilder", 20, 20);
+      doc.text("Kcal giornaliere: " + document.getElementById("kcal").textContent, 20, 30);
+      doc.text("Proteine: " + document.getElementById("proteine").textContent + " g", 20, 40);
+      doc.text("Grassi: " + document.getElementById("grassi").textContent + " g", 20, 50);
+      doc.text("Carboidrati: " + document.getElementById("carboidrati").textContent + " g", 20, 60);
+      doc.save("macrobuilder_report.pdf");
+    }
+
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      const html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === "light" ? "dark" : "light";
+    });
+  </script>
+</body>
+</html>
