@@ -1,1 +1,1 @@
-# macro-calculator
+MacroBuilder calcola calorie e macronutrienti personalizzati in base a peso, altezza, età, attività e obiettivi (massa, definizione, mantenimento). Permette di gestire giorni di allenamento e distribuzione carboidrati settimanale. Include grafici e download PDF per facilitare il piano alimentare.
